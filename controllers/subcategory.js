@@ -23,7 +23,7 @@ const subCategoryController = {
 
   getSubCategory: async (req, res) => {
     try {
-      var categoryId = req.body.categoryId||null; 
+      var categoryId = req.query.categoryId||null; 
       const newCategory= await Subcategory.find().where('categoryId',categoryId);
 
       res.status(201).json({ message: 'Sub-Category List!', data: newCategory });

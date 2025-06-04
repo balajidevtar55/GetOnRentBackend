@@ -23,7 +23,7 @@ const itemTypeController = {
 
   getItemType: async (req, res) => {
     try {
-      var subCategoryIdId = req.body.subCategoryIdId||null; 
+      var subCategoryIdId = req.query.subCategoryIdId||null; 
       const newItemType= await itemTypes.find().where('subCategoryIdId',subCategoryIdId);
 
       res.status(201).json({ message: 'item Type List!', data: newItemType });
