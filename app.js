@@ -44,6 +44,8 @@ if (cluster.isMaster) {
   app.use('/api', require('./routes/booking'));
   app.use('/api', require('./routes/payment'));
   app.use('/api', require('./routes/itemtypes'));
+  app.use('/api', require('./routes/auth'));
+
 
 
   
