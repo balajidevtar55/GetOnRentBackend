@@ -29,5 +29,5 @@ router.get('/post/postdetailbypostid/:postId', verifyJWT, postController.getPost
 
  
 
-module.exports = router;  
- 
+module.exports = router;   
+  

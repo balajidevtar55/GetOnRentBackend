@@ -56,7 +56,7 @@ exports.verifyOTP = async (req, res) => {
     if (!otp || (!email && !phone)) {
       return res.status(400).json({ message: "OTP and email or phone are required" });
     }
-  
+   
     const query = email ? { email } : { phone };
     const user = await User.findOne(query);
   

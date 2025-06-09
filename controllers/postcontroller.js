@@ -166,44 +166,8 @@ const AddPost = asyncHandler(async (req, res) => {
       });
     }
 
-    // Upload images for each node and replace the `images` field with S3 URLs
-    if(postData.nodes){
-      for (let node of postData.nodes) {
-        if (node.data.images && node.data.images.length > 0) {
-          const imageUrls = [];
-          for (const [index, imageData] of node.data.images.entries()) {
-            const filename = `${userId}_${node.id}_${index}.webp`;
-            const imageUrl = await uploadImageToS3(imageData, filename);
-            imageUrls.push(imageUrl);
-          }
-          node.data.images = imageUrls; // Replace image data with URLs
-        }
-      }
-    }
-    // Save post data in the database
-    let dynamicPostDataEntry = await DynamicPostData.findOne({
-      createdBy: mongoose.Types.ObjectId(userId),
-      "postData.category._id": postData?.category?._id,
-    });
-
-    if (dynamicPostDataEntry) { 
-      // Update existing post
-      dynamicPostDataEntry.postData = {
-        ...dynamicPostDataEntry.postData, // Retain existing fields like postImage and s3Keys
-        ...postData, // Overwrite with new fields from postData
-      };
-      dynamicPostDataEntry.isSubmit = isSubmit;
-      dynamicPostDataEntry.step = step;
-      
-      const updatedData = await dynamicPostDataEntry.save();
-      res.status(200).json({
-        message: "Dynamic data updated successfully",
-        data: updatedData,
-        success: true,
-      });
-    } else {
       // Create a new post entry
-      dynamicPostDataEntry = new DynamicPostData({
+      let dynamicPostDataEntry = new DynamicPostData({
         createdBy: mongoose.Types.ObjectId(userId),
         category: mongoose.Types.ObjectId(category),
         isSubmit: isSubmit,
@@ -217,7 +181,6 @@ const AddPost = asyncHandler(async (req, res) => {
         data: savedData,
         success: true,
       });
-    }
     
   } catch (error) {
     res.status(500).json({
@@ -245,6 +208,7 @@ const getPostData = asyncHandler(async (req, res) => {
     
     const updatedPosts = posts.map(post => ({
       ...post,
+      isOwner: post.createdBy?.toString() === userId.toString(),
     }));
     
   
@@ -387,6 +351,8 @@ const getPostDetailsByPostId = asyncHandler(async (req, res) => {
     });
   }
 });
+
+
 
   
 module.exports = {
