@@ -19,15 +19,14 @@ const upload = multer({
 const postController = require('../controllers/postcontroller');
 
 router.post('/post/create',verifyJWT, postController.AddPost );
+router.post('/post/updatePost',verifyJWT, postController.updatePost );
 router.post('/post',verifyJWT, postController.getPostData );
 router.post('/withaoutloginpost', postController.getWithoutLoginPostData );
 router.post('/post/upload-images', verifyJWT,upload.array('file'), postController.uploadPostImage);
 router.post('/post/deletepost', verifyJWT, postController.deletePostData);
 router.get('/post/postdetailbyuserid/:userId', verifyJWT, postController.getPostDetailsBtUserId);
 router.get('/post/postdetailbypostid/:postId', verifyJWT, postController.getPostDetailsByPostId);
-
-
- 
+router.post('/post/deletePostImage', verifyJWT, postController.deletePostImage);
 
 module.exports = router;   
   

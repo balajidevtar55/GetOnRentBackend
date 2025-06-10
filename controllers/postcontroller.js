@@ -86,72 +86,149 @@ const s3 = new AWS.S3({
 const uploadPostImage = asyncHandler(async (req, res) => {
   const { postId } = req.body;
   const files = req.files;
-  // Check if postId and file are present
-  if (!postId || !files) {
-      return res.status(400).json({ message: "Post ID and file are required." });
+
+  // Check if postId and files are present
+  if (!postId || !files || files.length === 0) {
+      return res.status(400).json({ 
+          message: "Post ID and at least one file are required." 
+      });
   }
 
   try {
+      // Test AWS credentials
       const credentials = await AWS.config.credentials.getPromise();
-      
+      console.log('AWS credentials loaded successfully');
   } catch (credError) {
-      return res.status(500).json({ 
+      console.error('AWS credentials error:', credError);
+      return res.status(500).json({
           message: "Failed to load AWS credentials",
           error: credError.message
       });
   }
 
+  // Check if post exists before uploading
+  let existingPost;
+  try {
+      existingPost = await DynamicPostData.findById(postId);
+      if (!existingPost) {
+          return res.status(404).json({ message: "Post not found." });
+      }
+  } catch (error) {
+      console.error('Error finding post:', error);
+      return res.status(500).json({
+          message: "Error finding post",
+          error: error.message
+      });
+  }
+
   const uploadedFileUrls = [];
   const s3Keys = [];
+  const uploadErrors = [];
+
   try {
-      // Prepare file for upload
-      for (const file of files) {
-          const fileContent = file.buffer;
-          const fileExtension = file.originalname.split('.').pop();
-          const key = `post-files/${postId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+      // Upload files to S3
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          
+          try {
+              // Validate file
+              if (!file.buffer || !file.originalname) {
+                  uploadErrors.push(`File ${i + 1}: Invalid file data`);
+                  continue;
+              }
 
-          const params = {
-              Bucket: process.env.AWS_BUCKET_NAME,
-              Key: key,
-              Body: fileContent,
-              ContentType: file.mimetype,
-              ACL: 'public-read',
-          };
+              const fileContent = file.buffer;
+              const fileExtension = file.originalname.split('.').pop();
+              const key = `post-files/${postId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
 
-          // Upload each file to S3
-          const s3Response = await s3.upload(params).promise();
-          uploadedFileUrls.push(s3Response.Location); // Store the URL
-          s3Keys.push(key);
+              const params = {
+                  Bucket: process.env.AWS_BUCKET_NAME,
+                  Key: key,
+                  Body: fileContent,
+                  ContentType: file.mimetype,
+                  ACL: 'public-read',
+              };
+
+              // Upload file to S3
+              const s3Response = await s3.upload(params).promise();
+              uploadedFileUrls.push(s3Response.Location);
+              s3Keys.push(key);
+              
+              console.log(`Successfully uploaded file ${i + 1}:`, s3Response.Location);
+              
+          } catch (fileError) {
+              console.error(`Error uploading file ${i + 1}:`, fileError);
+              uploadErrors.push(`File ${i + 1}: ${fileError.message}`);
+          }
       }
 
-      // Update the post with the file URL using findByIdAndUpdate
+      // Check if any files were uploaded successfully
+      if (uploadedFileUrls.length === 0) {
+          return res.status(500).json({
+              message: "Failed to upload any files",
+              errors: uploadErrors
+          });
+      }
+
+      // Get existing images to preserve them
+      const existingImages = existingPost.postData?.postImage || [];
+      const existingS3Keys = existingPost.postData?.s3Keys || [];
+
+      // Filter out duplicates
+      const newImages = uploadedFileUrls.filter(url => !existingImages.includes(url));
+      const newS3Keys = s3Keys.filter(key => !existingS3Keys.includes(key));
+
+      console.log(`Adding ${newImages.length} new images to existing ${existingImages.length} images`);
+
+      // Update the post - APPEND new images to existing ones
       const updatedPost = await DynamicPostData.findByIdAndUpdate(
           postId,
           {
-              $set: {
-                  "postData.postImage": uploadedFileUrls,  // Set the new postImage field
-                  "postData.s3Keys": s3Keys,
+              $push: {
+                  "postData.postImage": { $each: newImages },
+                  "postData.s3Keys": { $each: newS3Keys },
               },
           },
-          { new: true }  // Return the updated document after the update
+          { 
+              new: true,
+              runValidators: true
+          }
       );
 
-      console.log("updatedPost",updatedPost)
-      if (!updatedPost) {
-          return res.status(404).json({ message: "Post not found." });
+     
+
+      // Prepare response
+      const response = {
+          message: "Files uploaded and post updated successfully.",
+          uploadedFiles: uploadedFileUrls,
+          totalImages: updatedPost.postData?.postImage?.length || 0,
+          newImagesAdded: newImages.length,
+          post: updatedPost
+      };
+
+      // Include upload errors if any
+      if (uploadErrors.length > 0) {
+          response.partialSuccess = true;
+          response.uploadErrors = uploadErrors;
+          response.message = `${uploadedFileUrls.length} files uploaded successfully, ${uploadErrors.length} failed.`;
       }
 
+      return res.status(200).json(response);
 
-      return res.status(200).json({
-          message: "File uploaded and post updated successfully.",
-          fileUrl: uploadedFileUrls,
-      });
   } catch (error) {
-      console.error('Error uploading file:', error);
-      return res.status(500).json({ 
-          message: "An error occurred while uploading the file.",
+      console.error('Error in upload process:', error);
+      
+      // If some files were uploaded but database update failed, 
+      // you might want to clean up S3 files here
+      if (uploadedFileUrls.length > 0) {
+          console.log('Note: Some files were uploaded to S3 but database update failed. Consider cleanup.');
+      }
+
+      return res.status(500).json({
+          message: "An error occurred during the upload process.",
           error: error.message,
-          stack: error.stack
+          uploadedFiles: uploadedFileUrls, // Show which files were uploaded
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
   }
 });
@@ -188,6 +265,60 @@ const AddPost = asyncHandler(async (req, res) => {
       error: error.message,
     });
   } 
+});
+
+const updatePost = asyncHandler(async (req, res) => {
+  try {
+    const { postData, postId, category } = req.body;
+
+    if (!postId || !postData) {
+      return res.status(400).json({
+        message: "Post ID and post data are required",
+      });
+    }
+    const existingPost = await DynamicPostData.findById(postId);
+    const existingPostData = existingPost.postData || {};
+    const preservedData = {
+      s3Keys: existingPostData.s3Keys || [],
+      postImage: existingPostData.postImage || [],
+    };
+
+    // Create new postData by merging, giving priority to preserved data
+    const updatedPostData = {
+      ...existingPostData,  // Start with existing data
+      ...postData,          // Override with new data
+      ...preservedData,     // Always preserve S3 data
+    };
+
+    const updatedPost = await DynamicPostData.findByIdAndUpdate(
+      postId,
+      {
+        $set: {
+          postData: updatedPostData,
+          ...(category && { category: mongoose.Types.ObjectId(category) }),
+        },
+      }, 
+      { new: true } // return the updated document
+    );
+
+    if (!updatedPost) {
+      return res.status(404).json({
+        message: "Post not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Post updated successfully",
+      data: updatedPost,
+      success: true,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Error updating post",
+      error: error.message,
+    });
+  }
 });
 
 const getPostData = asyncHandler(async (req, res) => {
@@ -270,7 +401,7 @@ const getWithoutLoginPostData = asyncHandler(async (req, res) => {
         // Delete files from S3 bucket
         if (s3KeysToDelete.length > 0) {
           const deleteParams = {
-            Bucket: "localbusinessconnect", // Replace with your bucket name
+            Bucket: "getonrent", // Replace with your bucket name
             Delete: {
               Objects: s3KeysToDelete.map(key => ({ Key: key })),
             },
@@ -295,6 +426,7 @@ const getWithoutLoginPostData = asyncHandler(async (req, res) => {
         res.status(200).json({
           message: 'Post and associated S3 images deleted successfully',
           deletedCount: deletedCount.deletedCount, // Number of posts deleted
+          success:true
         });
       } else {
         res.status(404).json({
@@ -305,6 +437,74 @@ const getWithoutLoginPostData = asyncHandler(async (req, res) => {
       console.error("Error:", error);
       res.status(500).json({
         message: 'Error deleting post and S3 images',
+        error: error.message,
+      });
+    }
+  });
+  
+  const deletePostImage = asyncHandler(async (req, res) => {
+    try {
+      const { postId, imageUrl } = req.body;
+  
+      if (!postId || !imageUrl) {
+        return res.status(400).json({ message: "postId and imageUrl are required" });
+      }
+  
+      // Get the post document
+      const post = await DynamicPostData.findOne({ _id: postId });
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+
+      console.log("post",post)
+  
+      // Find the S3 key for the image to delete
+      const s3KeyToDelete = post.postData.s3Keys.find(key =>
+        imageUrl.includes(key.split("/").pop()) // match filename in URL
+      );
+  
+      if (!s3KeyToDelete) {
+        return res.status(404).json({ message: "Image key not found in post" });
+      }
+  
+      // Delete from S3
+      const deleteParams = {
+        Bucket: "getonrent",
+        Delete: {
+          Objects: [{ Key: s3KeyToDelete }],
+        },
+      };
+  
+      const deleteResult = await s3.deleteObjects(deleteParams).promise();
+      if (deleteResult.Errors && deleteResult.Errors.length > 0) {
+        return res.status(500).json({
+          message: "Failed to delete image from S3",
+          errors: deleteResult.Errors,
+        });
+      }
+  
+      // Update MongoDB: remove image from both arrays
+      const updatedPost = await DynamicPostData.findByIdAndUpdate(
+        postId,
+        {
+          $pull: {
+            "postData.postImage": imageUrl,
+            "postData.s3Keys": s3KeyToDelete,
+          },
+        },
+        { new: true }
+      );
+  
+      res.status(200).json({
+        message: "Image deleted successfully from S3 and post",
+        updatedPost,
+        success: true,
+      });
+  
+    } catch (error) {
+      console.error("Delete Image Error:", error);
+      res.status(500).json({
+        message: "Internal server error",
         error: error.message,
       });
     }
@@ -362,6 +562,8 @@ module.exports = {
     deletePostData,
     getPostDetailsBtUserId,
     getPostDetailsByPostId,
-    getWithoutLoginPostData
+    getWithoutLoginPostData,
+    deletePostImage,
+    updatePost
 }
   
