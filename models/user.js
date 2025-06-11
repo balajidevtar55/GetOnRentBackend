@@ -6,12 +6,16 @@ const userSchema = new mongoose.Schema({
     phone: {
         type: String,
         required: true,
-        lowercase: true
+        lowercase: true,
+        sparse: true,
+        unique: true
     },
     email: {
         type: String,
         required: true,
         lowercase: true,
+        sparse: true,
+        unique: true,
         match: [/\S+@\S+\.\S+/, 'is invalid']
     },
     password: String,

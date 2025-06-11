@@ -12,3 +12,4 @@ const AddPost = new mongoose.Schema({
 const DynamicPostData = mongoose.model('postData', AddPost);
 
 module.exports = DynamicPostData;
+ 
