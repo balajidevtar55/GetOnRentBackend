@@ -9,6 +9,7 @@ const cloudinary = require('cloudinary');
 const jwt = require('jsonwebtoken');
 const businessowner = require('../models/businessowner');
 const redisClient = require('../config/redisClient');
+const buildMongoFilter = require('../utils/buildMongoFilter');
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -324,37 +325,37 @@ const updatePost = asyncHandler(async (req, res) => {
 const getPostData = asyncHandler(async (req, res) => {
   try {
     const { filterData } = req.body;
-    
-    // Get logged-in user from request (populated by auth middleware)
+
     const userId = req.userId;
-    
     if (!userId) {
       return res.status(401).json({ message: 'Unauthorized: No user ID found in token' });
     }
-    
-  
-    
-    // If cache miss, fetch from database
-    const posts = await DynamicPostData.find(filterData).lean();
-    
+
+    const mongoFilter = buildMongoFilter(filterData); // <- build it here
+
+
+    const posts = await DynamicPostData.find(mongoFilter).lean();
+
     const updatedPosts = posts.map(post => ({
       ...post,
       isOwner: post.createdBy?.toString() === userId.toString(),
     }));
-    
-  
-    
+
     res.status(200).json({
       message: 'Dynamic data fetched successfully',
       data: updatedPosts,
+      success: true
     });
   } catch (error) {
     res.status(500).json({
       message: 'Error fetching dynamic data',
       error: error.message,
+      success: false
+
     });
   }
 });
+
 
 const getWithoutLoginPostData = asyncHandler(async (req, res) => {
   try {
