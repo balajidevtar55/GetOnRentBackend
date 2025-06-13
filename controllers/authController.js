@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const FIXED_OTP = "123456";
 const generateToken = (user) => {
     return jwt.sign({ id: user._id, email: user.email }, process.env.ACCESS_TOKEN_SECRET, {
-      expiresIn: "1d",
+      expiresIn: "30d",
     });
   };
   exports.loginWithOTP = async (req, res) => {

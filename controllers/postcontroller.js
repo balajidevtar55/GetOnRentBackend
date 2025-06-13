@@ -332,7 +332,7 @@ const getPostData = asyncHandler(async (req, res) => {
     }
 
     const mongoFilter = buildMongoFilter(filterData); // <- build it here
-
+   
 
     const posts = await DynamicPostData.find(mongoFilter).lean();
 
