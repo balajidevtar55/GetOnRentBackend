@@ -378,13 +378,17 @@ const getWithoutLoginPostData = asyncHandler(async (req, res) => {
     res.status(200).json({
       message: 'Dynamic data fetched successfully',
       data: updatedPosts,
+      success: true
+
     });
   } catch (error) {
     res.status(500).json({
       message: 'Error fetching dynamic data',
       error: error.message,
+      success: false
+
     });
-  }
+  } 
 });
 
   const deletePostData = asyncHandler(async (req, res) => {

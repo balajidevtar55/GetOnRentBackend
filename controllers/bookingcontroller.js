@@ -3,7 +3,8 @@ const asyncHandler = require('express-async-handler');
 const Booking = require('../models/Booking');
 
 const BookingAdd = asyncHandler(async (req, res) => {
-    const { bookingDetails,checkIn,checkOut } = req.body;
+    const { bookingDetails } = req.body;
+
     
     try {
         if (!bookingDetails) {
@@ -13,7 +14,7 @@ const BookingAdd = asyncHandler(async (req, res) => {
         const booking = new Booking({
             bookingDetails, // Add category-specific fields here
           });
-          const savedBooking = await booking.save();
+          const savedBooking = await booking.save(); 
           res.status(201).json(savedBooking); 
     } catch (error) {
         res.status(500).json({ error: err.message });
@@ -55,7 +56,61 @@ const BookingList = asyncHandler(async (req, res) => {
     
 }); 
 
+const BookingListSummery = asyncHandler(async (req, res) => {
+  try {
+   const  { userId }  = req.params;
+    // Check if a post by this user already exists
+    const bookings = await Booking.find({"bookingDetails.ownerId":userId}).lean();
+
+
+      res.status(201).json({
+        message: 'Your Data generated!',
+        data: bookings,
+        success:true
+      });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error storing dynamic data',
+      error: error.message,
+    });
+  }
+});
+
+const updateBookingStatus = asyncHandler(async (req, res) => {
+  try {
+    const { bookingId, newStatus } = req.body;
+    console.log(bookingId,newStatus);
+    
+
+    if (!newStatus) {
+      return res.status(400).json({ success: false, message: 'newStatus is required' });
+    }
+
+    const updatedBooking = await Booking.findOneAndUpdate(
+      { _id: bookingId },
+      { $set: { 'bookingDetails.status': newStatus } },
+      { new: true }
+    );
+
+    if (!updatedBooking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking status updated successfully',
+      data: updatedBooking,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error updating booking status',
+      error: error.message,
+    });
+  }
+});
 module.exports = {
     BookingAdd,
-    BookingList
+    BookingList,
+    BookingListSummery,
+    updateBookingStatus
 }
