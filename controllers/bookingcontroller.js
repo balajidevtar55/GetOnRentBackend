@@ -233,11 +233,86 @@ const checkExistingBooking = asyncHandler(async (req, res) => {
   }
 });
 
+const myBookings = asyncHandler(async (req, res) => {
+  try {
+    const {
+      filterData: {
+        status = 'all',
+        search = '',
+        page = 1,
+        limit = 2
+      } = {},
+    } = req.body;
+    const userId = req.userId 
+
+    console.log("userId",userId)
+    
+    
+
+    const skip = (Number(page) - 1) * Number(limit);
+   
+
+      const baseQuery = {
+      "bookingDetails.rentedBy": userId
+    };
+
+    const query = { ...baseQuery };
+    // Apply status filtering
+    if (status !== 'all') {
+      if (status === 'completed') {
+        query['bookingDetails.status'] = { $nin: ['pending', 'approved'] };
+      } else {
+        query['bookingDetails.status'] = status;
+      }
+    }
+
+    // Apply search filtering (adjust fields as needed)
+    if (search) {
+      query.$or = [
+        { "bookingDetails.productName": { $regex: search, $options: 'i' } },
+        { "bookingDetails.bookingId": { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    console.log("query",query);
+    
+
+    const isFiltered = status !== 'all' || Boolean(search);
+       const total = isFiltered
+      ? await Booking.countDocuments(query)
+      : await Booking.countDocuments(baseQuery);
+
+    
+    const bookings = await Booking.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      message: 'Booking summary retrieved!',
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      data: bookings
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching booking summary',
+      error: error.message
+    });
+  }
+});
+
 module.exports = {
     BookingAdd,
     BookingList,
     BookingListSummery,
     updateBookingStatus,
     getUnavailableDates,
-    checkExistingBooking
+    checkExistingBooking,
+    myBookings
 }

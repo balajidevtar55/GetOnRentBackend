@@ -15,7 +15,7 @@ const connectRedis = async () => {
 };
 
 // Call this function when your application starts
-connectRedis();
+// connectRedis();
 
 // Handle Redis connection errors
 redisClient.on('error', (err) => {
