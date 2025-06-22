@@ -107,13 +107,26 @@ const BookingListSummery = asyncHandler(async (req, res) => {
       .limit(Number(limit))
       .lean();
 
+         const [all, pending, approved, completed] = await Promise.all([
+      Booking.countDocuments(baseQuery),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "pending" }),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "approved" }),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": { $nin: ["pending", "approved"] } }),
+    ]);
+
     res.status(200).json({
       success: true,
       message: 'Booking summary retrieved!',
       total,
       page: Number(page),
       limit: Number(limit),
-      data: bookings
+      data: bookings,
+       statusCounts: {
+        all,
+        pending,
+        approved,
+        completed
+      }
     });
 
   } catch (error) {
@@ -245,7 +258,7 @@ const myBookings = asyncHandler(async (req, res) => {
     } = req.body;
     const userId = req.userId 
 
-    console.log("userId",userId)
+   
     
     
 
@@ -274,7 +287,6 @@ const myBookings = asyncHandler(async (req, res) => {
       ];
     }
 
-    console.log("query",query);
     
 
     const isFiltered = status !== 'all' || Boolean(search);
@@ -289,13 +301,26 @@ const myBookings = asyncHandler(async (req, res) => {
       .limit(Number(limit))
       .lean();
 
+        const [all, pending, approved, completed] = await Promise.all([
+      Booking.countDocuments(baseQuery),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "pending" }),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "approved" }),
+      Booking.countDocuments({ ...baseQuery, "bookingDetails.status": { $nin: ["pending", "approved"] } }),
+    ]);
+
     res.status(200).json({
       success: true,
       message: 'Booking summary retrieved!',
       total,
       page: Number(page),
       limit: Number(limit),
-      data: bookings
+      data: bookings,
+       statusCounts: {
+        all,
+        pending,
+        approved,
+        completed
+      }
     });
 
   } catch (error) {
