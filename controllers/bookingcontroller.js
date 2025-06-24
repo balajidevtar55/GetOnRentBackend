@@ -1,60 +1,61 @@
 
 const asyncHandler = require('express-async-handler');
 const Booking = require('../models/Booking');
+const DynamicPostData = require('../models/Addpost');
 
 const BookingAdd = asyncHandler(async (req, res) => {
-    const { bookingDetails } = req.body;
+  const { bookingDetails } = req.body;
 
-    
-    try {
-        if (!bookingDetails) {
-            return res.status(400).json({message: "All fields are required"});
-        }
-    
-        const booking = new Booking({
-            bookingDetails, // Add category-specific fields here
-          });
-          const savedBooking = await booking.save(); 
-          res.status(201).json(savedBooking); 
-    } catch (error) {
-        res.status(500).json({ error: err.message });
+
+  try {
+    if (!bookingDetails) {
+      return res.status(400).json({ message: "All fields are required" });
     }
-    
-}); 
+
+    const booking = new Booking({
+      bookingDetails, // Add category-specific fields here
+    });
+    const savedBooking = await booking.save();
+    res.status(201).json(savedBooking);
+  } catch (error) {
+    res.status(500).json({ error: err.message });
+  }
+
+});
 
 const BookingList = asyncHandler(async (req, res) => {
-    const { filterData } = req.body;
+  const { filterData } = req.body;
 
-    const { checkIn, checkOut,postId } = filterData;
-    try {
+  const { checkIn, checkOut, postId } = filterData;
+  try {
 
-        if (checkIn && checkOut && postId) {
-            const bookings = await Booking.find({
-              "bookingDetails.postId": postId, // Filter by postId
-              $or: [
-                { "bookingDetails.checkIn": { $gte: checkIn, $lte: checkOut } }, // checkIn falls in range
-                { "bookingDetails.checkOut": { $gte: checkIn, $lte: checkOut } }, // checkOut falls in range
-                {
-                  $and: [
-                    { "bookingDetails.checkIn": { $lte: checkIn } }, // Booking starts before range
-                    { "bookingDetails.checkOut": { $gte: checkOut } }, // Booking ends after range
-                  ],
-                },
-              ],
-            });
-          
-            res.status(201).json(bookings);
-          } else {
-            const booking = await Booking.find({});
-            res.status(201).json(booking);
-          }
-          
-       
-    } catch (error) {
-        res.status(500).json({ error: error.message });
+    if (checkIn && checkOut && postId) {
+      const bookings = await Booking.find({
+        "bookingDetails.postId": postId, // Filter by postId
+        $or: [
+          { "bookingDetails.checkIn": { $gte: checkIn, $lte: checkOut } }, // checkIn falls in range
+          { "bookingDetails.checkOut": { $gte: checkIn, $lte: checkOut } }, // checkOut falls in range
+          {
+            $and: [
+              { "bookingDetails.checkIn": { $lte: checkIn } }, // Booking starts before range
+              { "bookingDetails.checkOut": { $gte: checkOut } }, // Booking ends after range
+            ],
+          },
+        ],
+      });
+
+      res.status(201).json(bookings);
+    } else {
+      const booking = await Booking.find({});
+      res.status(201).json(booking);
     }
-    
-}); 
+
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+
+});
 
 const BookingListSummery = asyncHandler(async (req, res) => {
   try {
@@ -67,13 +68,13 @@ const BookingListSummery = asyncHandler(async (req, res) => {
       } = {},
       userId
     } = req.body;
-    
-    
+
+
 
     const skip = (Number(page) - 1) * Number(limit);
-   
 
-      const baseQuery = {
+
+    const baseQuery = {
       "bookingDetails.ownerId": userId
     };
 
@@ -96,18 +97,18 @@ const BookingListSummery = asyncHandler(async (req, res) => {
     }
 
     const isFiltered = status !== 'all' || Boolean(search);
-       const total = isFiltered
+    const total = isFiltered
       ? await Booking.countDocuments(query)
       : await Booking.countDocuments(baseQuery);
 
-    
+
     const bookings = await Booking.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
 
-         const [all, pending, approved, completed] = await Promise.all([
+    const [all, pending, approved, completed] = await Promise.all([
       Booking.countDocuments(baseQuery),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "pending" }),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "approved" }),
@@ -121,7 +122,7 @@ const BookingListSummery = asyncHandler(async (req, res) => {
       page: Number(page),
       limit: Number(limit),
       data: bookings,
-       statusCounts: {
+      statusCounts: {
         all,
         pending,
         approved,
@@ -143,7 +144,7 @@ const BookingListSummery = asyncHandler(async (req, res) => {
 const updateBookingStatus = asyncHandler(async (req, res) => {
   try {
     const { bookingId, newStatus } = req.body;
-    
+
 
     if (!newStatus) {
       return res.status(400).json({ success: false, message: 'newStatus is required' });
@@ -186,8 +187,8 @@ const getUnavailableDates = asyncHandler(async (req, res) => {
       "bookingDetails.postId": productId,
       "bookingDetails.status": "approved"
     }).select("bookingDetails.startDate bookingDetails.endDate -_id");
-       
-    
+
+
     const dateRanges = bookings.map(b => ({
       start: b.bookingDetails.startDate,
       end: b.bookingDetails.endDate
@@ -207,12 +208,12 @@ const getUnavailableDates = asyncHandler(async (req, res) => {
 });
 const checkExistingBooking = asyncHandler(async (req, res) => {
   const { productId } = req.params;
-  const userId = req.userId 
-  
+  const userId = req.userId
+
   if (!productId) {
     return res.status(400).json({ success: false, message: "Product ID is required" });
   }
-   console.log("userId",userId,productId)
+  console.log("userId", userId, productId)
 
 
   try {
@@ -256,16 +257,12 @@ const myBookings = asyncHandler(async (req, res) => {
         limit = 2
       } = {},
     } = req.body;
-    const userId = req.userId 
-
-   
-    
-    
+    const userId = req.userId
 
     const skip = (Number(page) - 1) * Number(limit);
-   
 
-      const baseQuery = {
+
+    const baseQuery = {
       "bookingDetails.rentedBy": userId
     };
 
@@ -287,26 +284,32 @@ const myBookings = asyncHandler(async (req, res) => {
       ];
     }
 
-    
+
 
     const isFiltered = status !== 'all' || Boolean(search);
-       const total = isFiltered
+    const total = isFiltered
       ? await Booking.countDocuments(query)
       : await Booking.countDocuments(baseQuery);
 
-    
+
     const bookings = await Booking.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
 
-        const [all, pending, approved, completed] = await Promise.all([
+    const [all, pending, approved, completed] = await Promise.all([
       Booking.countDocuments(baseQuery),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "pending" }),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "approved" }),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": { $nin: ["pending", "approved"] } }),
     ]);
+    let postData = [];
+    if (!bookings || bookings.length != 0) {
+      bookings.map((bookingData) => {
+        postData.push(bookingData);
+      })
+    }
 
     res.status(200).json({
       success: true,
@@ -315,7 +318,8 @@ const myBookings = asyncHandler(async (req, res) => {
       page: Number(page),
       limit: Number(limit),
       data: bookings,
-       statusCounts: {
+      postData: postData,
+      statusCounts: {
         all,
         pending,
         approved,
@@ -333,11 +337,11 @@ const myBookings = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-    BookingAdd,
-    BookingList,
-    BookingListSummery,
-    updateBookingStatus,
-    getUnavailableDates,
-    checkExistingBooking,
-    myBookings
+  BookingAdd,
+  BookingList,
+  BookingListSummery,
+  updateBookingStatus,
+  getUnavailableDates,
+  checkExistingBooking,
+  myBookings
 }
