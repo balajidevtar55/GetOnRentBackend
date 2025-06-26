@@ -7,6 +7,8 @@ const razorpayInstance = new Razorpay({
 
 exports.paymentController = async (req, res) => {
   const { amount, currency } = req.body;
+    console.log("order",amount)
+
   try {
     const order = await razorpayInstance.orders.create({
       amount: amount * 100, // Amount in paise

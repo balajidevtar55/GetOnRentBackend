@@ -10,10 +10,7 @@ router.post('/bookings/updateStatus',verifyJWT, bookingcontroller.updateBookingS
 router.get('/bookings/unavailable/:productId',verifyJWT, bookingcontroller.getUnavailableDates);
 router.get('/bookings/check/:productId', verifyJWT, bookingcontroller.checkExistingBooking)
 router.post('/bookings/myBookings', verifyJWT, bookingcontroller.myBookings)
-
-
-
-
+router.post('/bookings/payment-update', verifyJWT, bookingcontroller.updatePaymentStatus);
 
 
 

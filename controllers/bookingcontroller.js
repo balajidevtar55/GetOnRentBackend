@@ -304,21 +304,45 @@ const myBookings = asyncHandler(async (req, res) => {
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": "approved" }),
       Booking.countDocuments({ ...baseQuery, "bookingDetails.status": { $nin: ["pending", "approved"] } }),
     ]);
-    let postData = [];
-    if (!bookings || bookings.length != 0) {
-      bookings.map((bookingData) => {
-        postData.push(bookingData);
-      })
-    }
-
+    let updatedData = [];
+if (Array.isArray(bookings) && bookings.length !== 0) {
+  try {
+    // Extract all unique post IDs
+    const postIds = [...new Set(bookings.map(booking => booking.bookingDetails.postId))];
+    
+    // Fetch all posts in one query
+    const posts = await DynamicPostData.find({ 
+      _id: { $in: postIds } 
+    }).lean();
+    
+    // Create a map for quick lookup
+    const postMap = new Map(posts.map(post => [post._id.toString(), post]));
+    
+    // Map bookings with their corresponding post data
+    updatedData = bookings.map(booking => ({
+      ...booking,
+      bookingDetails: {
+        ...booking.bookingDetails,
+        postData: postMap.get(booking.bookingDetails.postId.toString()) || null,
+      }
+    }));
+    
+    console.log("Updated data with post details:", updatedData);
+  } catch (error) {
+    console.error("Error processing bookings:", error);
+    updatedData = [];
+  }
+} else {
+  console.error("Bookings array is empty or invalid.");
+  updatedData = [];
+}
     res.status(200).json({
       success: true,
       message: 'Booking summary retrieved!',
       total,
       page: Number(page),
       limit: Number(limit),
-      data: bookings,
-      postData: postData,
+      data: updatedData,
       statusCounts: {
         all,
         pending,
@@ -336,6 +360,57 @@ const myBookings = asyncHandler(async (req, res) => {
   }
 });
 
+const updatePaymentStatus = asyncHandler(async (req, res) => {
+  const { bookingId, paymentMethod, razorpayDetails } = req.body;
+
+  if (!bookingId || !paymentMethod) {
+    return res.status(400).json({
+      success: false,
+      message: 'Booking ID and payment method are required'
+    });
+  }
+
+  try {
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Update fields
+    booking.set('bookingDetails.paymentStatus', 'completed');
+    booking.set('bookingDetails.paymentMethod', paymentMethod);
+    booking.set('bookingDetails.paymentCompleted', true);
+
+    if (paymentMethod === 'online' && razorpayDetails) {
+      booking.set('bookingDetails.razorpayDetails', {
+        orderId: razorpayDetails.orderId,
+        paymentId: razorpayDetails.paymentId,
+        signature: razorpayDetails.signature,
+        paidAt: new Date()
+      });
+    }
+
+    await booking.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Payment status updated successfully',
+      booking
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating payment status',
+      error: error.message
+    });
+  }
+});
+
+
 module.exports = {
   BookingAdd,
   BookingList,
@@ -343,5 +418,6 @@ module.exports = {
   updateBookingStatus,
   getUnavailableDates,
   checkExistingBooking,
-  myBookings
+  myBookings,
+  updatePaymentStatus
 }
