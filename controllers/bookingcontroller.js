@@ -327,7 +327,6 @@ if (Array.isArray(bookings) && bookings.length !== 0) {
       }
     }));
     
-    console.log("Updated data with post details:", updatedData);
   } catch (error) {
     console.error("Error processing bookings:", error);
     updatedData = [];

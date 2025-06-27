@@ -5,15 +5,13 @@ const verifyJWT = require('../middleware/verifyJWT');
 
 // Authentication
 router.post('/users/login', userController.loginWithPassword);
+router.get('/users/userInfo',verifyJWT, userController.userInfo);
+
 // Registration
 router.get('/', (req, res) => {
     res.send('Hello World!');
   });
 
-// Get Current User
-// router.get('/user', verifyJWT, userController.getCurrentUser);
 
-// Update User
-// router.put('/user', verifyJWT, userController.updateUser);
 
 module.exports = router;

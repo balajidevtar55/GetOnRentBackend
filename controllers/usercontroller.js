@@ -23,7 +23,17 @@ const loginWithPassword = asyncHandler(async (req, res) => {
     res.json({ success: true, message: "Password login successful", token });
 });
 
+const userInfo = asyncHandler(async (req, res) => {
+    const  userId  = req.userId;
+   const UserData = await User.findById(userId).select('-password -otp');
+    if (!UserData) {
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ success: true, data:UserData, message: "User Data Generated " });
+});
 module.exports = {
     loginWithPassword,
+    userInfo
     
 }
