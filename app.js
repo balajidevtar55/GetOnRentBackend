@@ -47,6 +47,10 @@ if (cluster.isMaster) {
   app.use('/api', require('./routes/auth'));
 
 
+  app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 
   
   require("./utils/cronJob"); 
