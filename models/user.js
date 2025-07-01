@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
         unique: true,
         match: [/\S+@\S+\.\S+/, 'is invalid']
     },
+    walletBalance:Number,
     password: String,
     otp: String,
     otpExpiresAt: Date,

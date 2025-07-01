@@ -35,5 +35,4 @@ const userInfo = asyncHandler(async (req, res) => {
 module.exports = {
     loginWithPassword,
     userInfo
-    
 }

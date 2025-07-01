@@ -27,6 +27,6 @@ router.post('/post/deletepost', verifyJWT, postController.deletePostData);
 router.get('/post/postdetailbyuserid/:userId', verifyJWT, postController.getPostDetailsBtUserId);
 router.get('/post/postdetailbypostid/:postId', verifyJWT, postController.getPostDetailsByPostId);
 router.post('/post/deletePostImage', verifyJWT, postController.deletePostImage);
-
+router.get("/admin/migrate-locations", postController.migratePostLocations);
 module.exports = router;   
   

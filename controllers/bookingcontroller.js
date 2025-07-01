@@ -2,6 +2,9 @@
 const asyncHandler = require('express-async-handler');
 const Booking = require('../models/Booking');
 const DynamicPostData = require('../models/Addpost');
+const user = require('../models/user');
+const TransactionHistory = require('../models/TransactionHistory');
+const PlatformEarnings = require('../models/PlatformEarnings');
 
 const BookingAdd = asyncHandler(async (req, res) => {
   const { bookingDetails } = req.body;
@@ -143,8 +146,7 @@ const BookingListSummery = asyncHandler(async (req, res) => {
 
 const updateBookingStatus = asyncHandler(async (req, res) => {
   try {
-    const { bookingId, newStatus } = req.body;
-
+    const { bookingId, newStatus, isDamaged, damageAmount = 0 } = req.body;
 
     if (!newStatus) {
       return res.status(400).json({ success: false, message: 'newStatus is required' });
@@ -160,11 +162,49 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
+    const { depositAmount = 0, rentedBy } = updatedBooking.bookingDetails;
+
+    if (newStatus === 'returned') {
+      // Refund only if not damaged
+      if (!isDamaged) {
+        await user.findByIdAndUpdate(rentedBy, {
+          $inc: { walletBalance: depositAmount }
+        });
+
+        // Optional: Log transaction for customer
+        await TransactionHistory.create({
+          userId: rentedBy,
+          sourceUserId: rentedBy,
+          type: 'credit',
+          amount: depositAmount,
+          method: 'wallet',
+          status: 'success',
+          bookingId: bookingId,
+          note: 'Deposit refunded',
+          createdAt: new Date()
+        });
+      } else {
+        // Optionally log damage transaction
+        await TransactionHistory.create({
+          userId: rentedBy,
+          sourceUserId: rentedBy,
+          type: 'debit',
+          amount: damageAmount || 0,
+          method: 'damage',
+          status: 'held',
+          bookingId: bookingId,
+          note: 'Deposit withheld due to damage',
+          createdAt: new Date()
+        });
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: 'Booking status updated successfully',
       data: updatedBooking,
     });
+
   } catch (error) {
     res.status(500).json({
       message: 'Error updating booking status',
@@ -172,6 +212,7 @@ const updateBookingStatus = asyncHandler(async (req, res) => {
     });
   }
 });
+
 
 
 
@@ -360,7 +401,7 @@ if (Array.isArray(bookings) && bookings.length !== 0) {
 });
 
 const updatePaymentStatus = asyncHandler(async (req, res) => {
-  const { bookingId, paymentMethod, razorpayDetails } = req.body;
+  const { bookingId, paymentMethod, razorpayDetails,amount } = req.body;
 
   if (!bookingId || !paymentMethod) {
     return res.status(400).json({
@@ -379,12 +420,12 @@ const updatePaymentStatus = asyncHandler(async (req, res) => {
       });
     }
 
-    // Update fields
+    // Update payment status
     booking.set('bookingDetails.paymentStatus', 'completed');
     booking.set('bookingDetails.paymentMethod', paymentMethod);
     booking.set('bookingDetails.paymentCompleted', true);
 
-    if (paymentMethod === 'online' && razorpayDetails) {
+    if (paymentMethod != 'cod' && razorpayDetails) {
       booking.set('bookingDetails.razorpayDetails', {
         orderId: razorpayDetails.orderId,
         paymentId: razorpayDetails.paymentId,
@@ -395,9 +436,69 @@ const updatePaymentStatus = asyncHandler(async (req, res) => {
 
     await booking.save();
 
+   const isOnlinePayment = ['upi', 'wallet', 'card'].includes(paymentMethod);
+const { rentedBy, ownerId, rentalAmount, depositAmount = 0 } = booking.bookingDetails;
+
+let ownerShare = rentalAmount;
+let platformFee = 0;
+
+// Calculate fees and owner share
+if (isOnlinePayment) {
+  const totalAmount = rentalAmount + depositAmount;
+  platformFee = Math.floor(totalAmount * 0.01); // 1% fee
+  ownerShare = rentalAmount - platformFee; // Owner gets rental amount minus platform fee and deposit
+} else if (paymentMethod === 'cod') {
+  platformFee = Math.floor(rentalAmount * 0.01); // 5% on rental + deposit
+  ownerShare = amount - depositAmount - platformFee;
+}
+
+
+// 1️⃣ Transaction History Entry (for owner)
+await TransactionHistory.create({
+  userId: ownerId,
+  sourceUserId: rentedBy,
+  type: 'credit',
+  amount: ownerShare,
+  depositAmount,
+  bookingId: booking._id,
+  method: paymentMethod,
+  status: 'success',
+  createdAt: new Date()
+});
+
+await TransactionHistory.create({
+  userId: rentedBy,
+  sourceUserId: ownerId,
+  type: 'debit',
+  amount: amount ,
+  actualrentalAmount: amount - depositAmount,
+  depositAmount,
+  bookingId: booking._id,
+  method: paymentMethod,
+  status: 'success',
+  createdAt: new Date()
+});
+
+// 2️⃣ Platform Earnings Entry
+await PlatformEarnings.create({
+  bookingId: booking._id,
+  ownerId,
+  customerId: rentedBy,
+  rentalAmount,
+  depositAmount,
+  platformFee,
+  method: paymentMethod,
+  status: 'earned'
+});
+
+// 3️⃣ Update Owner's Wallet
+await user.findByIdAndUpdate(ownerId, {
+  $inc: { walletBalance: ownerShare }
+});
+
     res.status(200).json({
       success: true,
-      message: 'Payment status updated successfully',
+      message: 'Payment status updated and transaction recorded',
       booking
     });
   } catch (error) {
@@ -408,6 +509,7 @@ const updatePaymentStatus = asyncHandler(async (req, res) => {
     });
   }
 });
+
 
 
 module.exports = {
