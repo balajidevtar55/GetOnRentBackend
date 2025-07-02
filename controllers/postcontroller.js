@@ -361,7 +361,6 @@ const getPostData = asyncHandler(async (req, res) => {
     const matchFilter = buildMongoFilter(filterData);
 
     let posts = [];
-
     // ✅ If lat/lng is present, use $geoNear
     if (filterData?.latitude && filterData?.longitude) {
       const pipeline = [
@@ -373,7 +372,6 @@ const getPostData = asyncHandler(async (req, res) => {
         },
         distanceField: "distance",
         spherical: true,
-        maxDistance: 50000, // 50km radius - adjust as needed
         query: Object.keys(matchFilter).length > 0 ? matchFilter : {} // Apply filters directly in geoNear
       }
     }
