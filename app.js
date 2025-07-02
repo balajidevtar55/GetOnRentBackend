@@ -23,10 +23,9 @@ if (cluster.isMaster) {
   });
 } else {
   // Worker processes share the same port
-  require('dotenv').config({
-    override: true,
-    path: '.env'
-  });
+ if (cluster.isMaster) {
+  require('dotenv').config({ override: true, path: '.env' }); 
+}
   
   require("./config/dbconnect");
   

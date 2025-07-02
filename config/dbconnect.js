@@ -12,16 +12,17 @@ if (!process.env.DATABASE_URI) {
 const connectToDatabase = async () => { 
   try {
     mongoose.set('strictQuery', false);
-    await mongoose.connect(process.env.DATABASE_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,  
-      family: 4,
-      writeConcern: {
-        w: 'majority', // Replace 'majority' with your desired write concern mode
-        j: true, // (optional) If you want the write to be journaled
-        wtimeout: 1000, // (optional) Timeout for write concern acknowledgment
-      }, 
-    }); 
+ await mongoose.connect(process.env.DATABASE_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  family: 4,
+  serverSelectionTimeoutMS: 3000,
+  writeConcern: {
+    w: 'majority',
+    j: true,
+    wtimeout: 1000,
+  },
+});
 
     console.log("Connection successful");
   } catch (err) {
