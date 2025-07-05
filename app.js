@@ -6,7 +6,6 @@ const http = require('http');
 const morgan = require('morgan');
 const { Server } = require('socket.io');
 const dotenv = require('dotenv');
-const redis = require('redis');
 
 dotenv.config({ override: true, path: '.env' });
 
@@ -46,10 +45,7 @@ if (cluster.isMaster) {
     pingInterval: 25000,
   });
 
-  // Redis adapter for clustering (uncomment if you have Redis)
-  // const pubClient = redis.createClient({ host: 'localhost', port: 6379 });
-  // const subClient = pubClient.duplicate();
-  // io.adapter(createAdapter(pubClient, subClient));
+
 
   // Database connection
   require('./config/dbconnect');
